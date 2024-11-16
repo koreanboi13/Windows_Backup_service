@@ -118,14 +118,14 @@ void add_file_to_archive(zip_t* archive, const std::string& filepath, const std:
 	zip_source_t* source = zip_source_file(archive, filepath.c_str(), 0, -1);
 	if (!source || zip_file_add(archive, archivePath.c_str(), source, ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0) {
 		zip_source_free(source);
-		std::cerr << ">> Error adding file: " << filepath << "\n";
+		addLogMessage(">> Error adding file");
 	}
 }
 
 void zip() {
 	ifstream in("E:\\SMIT\\lab_2\\service.conf");
 	if (!in) {
-		std::cerr << ">> Error opening config file\n";
+		addLogMessage(">> Error opening config file");
 		return;
 	}
 
@@ -135,15 +135,13 @@ void zip() {
 
 	zip_t* archive = nullptr;
 	int zipError;
-	if (fs::exists(arch)) {
+	if (fs::exists(arch))
 		archive = zip_open(arch.c_str(), 0, &zipError);
-	}
-	else {
+	else 
 		archive = zip_open(arch.c_str(), ZIP_CREATE, &zipError);
-	}
 
 	if (!archive) {
-		cerr << ">> Error opening ZIP archive\n";
+		addLogMessage(">> Error opening ZIP archive");
 		return;
 	}
 
@@ -157,9 +155,9 @@ void zip() {
 				zip_stat_t archiveStat;
 
 				stat(entry.path().string().c_str(), &fileStat);
-				if (zip_name_locate(archive, relativePath.c_str(), 0) == -1) {
+				if (zip_name_locate(archive, relativePath.c_str(), 0) == -1) 
 					add_file_to_archive(archive, entry.path().string(), relativePath);
-				}
+				
 				else if (zip_stat(archive, relativePath.c_str(), 0, &archiveStat) == 0 &&
 					archiveStat.mtime < fileStat.st_mtime) {
 					add_file_to_archive(archive, entry.path().string(), relativePath);
