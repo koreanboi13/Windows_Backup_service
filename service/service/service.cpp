@@ -74,8 +74,6 @@ void ServiceMain(int argc, char** argv) {
 		return;
 	}
 
-
-
 	serviceStatus.dwCurrentState = SERVICE_RUNNING;
 	SetServiceStatus(hStatus, &serviceStatus);
 
@@ -326,7 +324,6 @@ int StopService()
 	}
 
 	if (status.dwCurrentState == SERVICE_RUNNING) {
-		// Если сервис работает, пытаемся его остановить
 		if (!ControlService(hService, SERVICE_CONTROL_STOP, &status)) {
 			addLogMessage(">>Error: Unable to stop service");
 			CloseServiceHandle(hService);
