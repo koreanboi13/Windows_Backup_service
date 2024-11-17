@@ -88,74 +88,100 @@ void ServiceMain(int argc, char** argv) {
 }
 
 
-bool check(string p, string m)
-{
+std::string compute_relative_path(const fs::path& fullPath, const fs::path& basePath) {
+	auto fullIter = fullPath.begin();
+	auto baseIter = basePath.begin();
+
+	while (fullIter != fullPath.end() && baseIter != basePath.end() && *fullIter == *baseIter) {
+		++fullIter;
+		++baseIter;
+	}
+
+	std::string relativePath;
+	while (fullIter != fullPath.end()) {
+		relativePath += fullIter->string();
+		if (++fullIter != fullPath.end()) {
+			relativePath += "/";
+		}
+	}
+
+	return relativePath;
+}
+
+bool check(const std::string& p, const std::string& m) {
 	int i = 0, j = 0, lm = -1, lp = 0;
-	while (p[i])
-	{
-		if (m[j] == '*')
+	while (p[i]) {
+		if (m[j] == '*') {
 			lp = i, lm = ++j;
-		else if (p[i] == m[j] || m[j] == '?')
+		}
+		else if (p[i] == m[j] || m[j] == '?') {
 			i++, j++;
-		else if (p[i] != m[j])
-		{
+		}
+		else {
 			if (lm == -1) return false;
 			i = ++lp;
 			j = lm;
 		}
 	}
-	if (!m[j]) return !p[i];
-	return false;
-}
-
-string get_filename(const experimental::filesystem::path& p) {
-	return p.filename().string();
+	while (m[j] == '*') j++;
+	return !p[i] && !m[j];
 }
 
 void add_file_to_archive(zip_t* archive, const std::string& filepath, const std::string& archivePath) {
 	zip_source_t* source = zip_source_file(archive, filepath.c_str(), 0, -1);
-	if (!source || zip_file_add(archive, archivePath.c_str(), source, ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0) {
+	if (!source) {
+		addLogMessage(">> Error creating zip source for file");
+		return;
+	}
+
+	if (zip_file_add(archive, archivePath.c_str(), source, ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0) {
+		addLogMessage(">> Error adding file to archive");
 		zip_source_free(source);
-		addLogMessage(">> Error adding file");
 	}
 }
 
+void add_folder_to_archive(zip_t* archive, const std::string& archivePath) {
+	if (zip_dir_add(archive, (archivePath + "/").c_str(), ZIP_FL_ENC_UTF_8) < 0)
+		addLogMessage(">> Error adding folder to archive");
+}
+
 void zip() {
-	ifstream in("E:\\SMIT\\lab_2\\service.conf");
+	std::ifstream in("E:\\SMIT\\lab_2\\service.conf");
 	if (!in) {
 		addLogMessage(">> Error opening config file");
 		return;
 	}
 
-	string cat, arch, mask;
+	std::string cat, arch, mask;
 	getline(in, cat);
 	getline(in, arch);
 
 	zip_t* archive = nullptr;
 	int zipError;
-	if (fs::exists(arch))
+	if (fs::exists(arch)) 
 		archive = zip_open(arch.c_str(), 0, &zipError);
 	else 
 		archive = zip_open(arch.c_str(), ZIP_CREATE, &zipError);
 
 	if (!archive) {
-		addLogMessage(">> Error opening ZIP archive");
+		addLogMessage(">> Error opening ZIP archive: ");
 		return;
 	}
 
+	fs::path basePath = fs::path(cat);
 	while (getline(in, mask)) {
 		for (const auto& entry : fs::recursive_directory_iterator(cat)) {
-			if (check(entry.path().filename().string(), mask)) {
-				string relativePath = entry.path().string();
-				relativePath.erase(0, cat.size() + 1);
+			std::string relativePath = compute_relative_path(entry.path(), basePath);
 
+			if (fs::is_directory(entry))
+				add_folder_to_archive(archive, relativePath);
+			else if (fs::is_regular_file(entry) && check(entry.path().filename().string(), mask)) {
 				struct stat fileStat;
 				zip_stat_t archiveStat;
 
 				stat(entry.path().string().c_str(), &fileStat);
 				if (zip_name_locate(archive, relativePath.c_str(), 0) == -1) 
 					add_file_to_archive(archive, entry.path().string(), relativePath);
-				
 				else if (zip_stat(archive, relativePath.c_str(), 0, &archiveStat) == 0 &&
 					archiveStat.mtime < fileStat.st_mtime) {
 					add_file_to_archive(archive, entry.path().string(), relativePath);
